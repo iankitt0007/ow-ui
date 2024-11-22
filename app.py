@@ -12,10 +12,9 @@ from flask_migrate import Migrate
 app = Flask(__name__)
 app.config.from_object(Config)
 
-migrate = Migrate(app, db)
-
 # Initialize the SQLAlchemy object
 db.init_app(app)
+migrate = Migrate(app, db)
 
 # Automatically create tables if they do not exist
 with app.app_context():
@@ -53,7 +52,7 @@ def signup():
             flash('Email already registered!')
             return redirect(url_for('signup'))
 
-        new_user = User(username=form.username.data, email=form.email.data)
+        new_user = User(username=form.username.data, email=form.email.data, role="user")
         new_user.set_password(form.password.data)
         db.session.add(new_user)
         db.session.commit()
@@ -83,6 +82,9 @@ def login():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if current_user.role == 'Admin':
+        users = User.query.all()
+        return redirect(url_for('dashboard.html'), users=users)
     return render_template('dashboard.html', username=current_user.username)
 
 
@@ -92,6 +94,73 @@ def logout():
     logout_user()
     flash('You have been logged out.')
     return redirect(url_for('login'))
+
+# Add user route (for `add_user.html`)
+@app.route('/add_user', methods=['GET', 'POST'])
+@login_required
+def add_user():
+    if current_user.role != 'Admin':
+        flash('You do not have permission to access this page.')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+        role = request.form['role']  # This will allow setting role as 'Admin' or 'User'
+        
+        # Check if user already exists
+        if User.query.filter_by(email=email).first():
+            flash('Email already exists!')
+            return redirect(url_for('add_user'))
+        
+        new_user = User(username=username, email=email, role=role)
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('User added successfully!')
+        return redirect(url_for('manage_users'))
+    
+    return render_template('add_user.html')
+
+
+# Edit user route (for `edit_user.html`)
+@app.route('/edit_user/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_user(id):
+    user = User.query.get_or_404(id)
+    
+    if current_user.role != 'Admin' and current_user.id != id:
+        flash('You do not have permission to edit this user.')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        user.username = request.form['username']
+        user.email = request.form['email']
+        password = request.form['password']
+        role = request.form['role']
+        
+        if password:
+            user.set_password(password)
+        user.role = role
+        
+        db.session.commit()
+        flash('User updated successfully!')
+        return redirect(url_for('manage_users'))
+    
+    return render_template('edit_user.html', user=user)
+
+
+# Manage users route (for `manage_users.html`)
+@app.route('/manage_users')
+@login_required
+def manage_users():
+    if current_user.role != 'Admin':
+        flash('You do not have permission to manage users.')
+        return redirect(url_for('dashboard'))
+
+    users = User.query.all()
+    return render_template('manage_users.html', users=users)
 
 
 if __name__ == '__main__':
