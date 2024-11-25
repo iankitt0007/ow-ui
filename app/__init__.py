@@ -1,3 +1,4 @@
+from app.routes import routes
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -18,11 +19,11 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
 
     # Import routes after app and db are initialized
-    from app.routes import auth, dashboard, user
+    from app.routes import auth, user
 
     # Register Blueprints
     app.register_blueprint(auth.bp)
-    app.register_blueprint(dashboard.bp)
+    app.register_blueprint(routes.bp)
     app.register_blueprint(user.bp)
 
     return app
